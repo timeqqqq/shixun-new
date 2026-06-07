@@ -7,6 +7,7 @@ import com.campus.qa.entity.Question;
 import com.campus.qa.mapper.ContributionMapper;
 import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.ContributionService;
+import com.campus.qa.service.QuestionEmbeddingService;
 import com.campus.qa.service.SensitiveWordService;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -24,15 +25,18 @@ public class ContributionServiceImpl implements ContributionService {
     private final QuestionMapper questionMapper;
     private final RedisTemplate<Object, Object> redisTemplate;
     private final SensitiveWordService sensitiveWordService;
+    private final QuestionEmbeddingService questionEmbeddingService;
 
     public ContributionServiceImpl(ContributionMapper contributionMapper,
                                    QuestionMapper questionMapper,
                                    RedisTemplate<Object, Object> redisTemplate,
-                                   SensitiveWordService sensitiveWordService) {
+                                   SensitiveWordService sensitiveWordService,
+                                   QuestionEmbeddingService questionEmbeddingService) {
         this.contributionMapper = contributionMapper;
         this.questionMapper = questionMapper;
         this.redisTemplate = redisTemplate;
         this.sensitiveWordService = sensitiveWordService;
+        this.questionEmbeddingService = questionEmbeddingService;
     }
 
     @Override
@@ -48,36 +52,44 @@ public class ContributionServiceImpl implements ContributionService {
         checkDailyIpLimit(ip);
         checkDuplicate(question);
 
-        Contribution c = new Contribution();
-        c.setQuestion(question);
-        c.setAnswer(answer);
-        c.setCategory(category);
-        c.setSubmitIp(ip);
-        c.setSubmitTime(LocalDateTime.now());
+        Contribution contribution = new Contribution();
+        contribution.setQuestion(question);
+        contribution.setAnswer(answer);
+        contribution.setCategory(category);
+        contribution.setSubmitIp(ip);
+        contribution.setSubmitTime(LocalDateTime.now());
 
         SensitiveWordService.ModerationHit hitQuestion = sensitiveWordService.match(question);
         SensitiveWordService.ModerationHit hitAnswer = sensitiveWordService.match(answer);
-        SensitiveWordService.ModerationHit hit = hitQuestion.hit() ? hitQuestion : hitAnswer;
+        SensitiveWordService.ModerationHit hit = pickStrongerHit(hitQuestion, hitAnswer);
         if (hit.hit()) {
-            c.setStatus("rejected");
-            c.setAuditTime(LocalDateTime.now());
-            c.setRejectReason("auto reject: sensitive word=" + hit.word());
-            contributionMapper.insert(c);
-            return c;
+            if ("high".equals(hit.level())) {
+                contribution.setStatus("rejected");
+                contribution.setAuditTime(LocalDateTime.now());
+                contribution.setRejectReason("auto reject: sensitive word=" + hit.word());
+                contributionMapper.insert(contribution);
+                return contribution;
+            }
+            if ("medium".equals(hit.level())) {
+                contribution.setStatus("pending");
+                contribution.setRejectReason("pending review: sensitive word=" + hit.word());
+                contributionMapper.insert(contribution);
+                return contribution;
+            }
         }
 
         if (isHighConfidence(question, answer, category)) {
-            c.setStatus("approved");
-            c.setAuditTime(LocalDateTime.now());
-            c.setRejectReason(null);
-            contributionMapper.insert(c);
+            contribution.setStatus("approved");
+            contribution.setAuditTime(LocalDateTime.now());
+            contribution.setRejectReason(null);
+            contributionMapper.insert(contribution);
             insertQuestion(question, answer, category, "contribution-auto");
-            return c;
+            return contribution;
         }
 
-        c.setStatus("pending");
-        contributionMapper.insert(c);
-        return c;
+        contribution.setStatus("pending");
+        contributionMapper.insert(contribution);
+        return contribution;
     }
 
     @Override
@@ -123,7 +135,32 @@ public class ContributionServiceImpl implements ContributionService {
         if (question.length() < 8 || answer.length() < 30) {
             return false;
         }
-        return question.contains("？") || question.contains("?");
+        return question.contains("\uFF1F") || question.contains("?");
+    }
+
+    private static SensitiveWordService.ModerationHit pickStrongerHit(
+            SensitiveWordService.ModerationHit left,
+            SensitiveWordService.ModerationHit right) {
+        if (!left.hit()) {
+            return right;
+        }
+        if (!right.hit()) {
+            return left;
+        }
+        return levelRank(left.level()) >= levelRank(right.level()) ? left : right;
+    }
+
+    private static int levelRank(String level) {
+        if ("high".equals(level)) {
+            return 3;
+        }
+        if ("medium".equals(level)) {
+            return 2;
+        }
+        if ("low".equals(level)) {
+            return 1;
+        }
+        return 0;
     }
 
     private void insertQuestion(String question, String answer, String category, String source) {
@@ -135,6 +172,7 @@ public class ContributionServiceImpl implements ContributionService {
         item.setHitCount(0L);
         item.setCreateTime(LocalDateTime.now());
         questionMapper.insert(item);
+        questionEmbeddingService.upsertEmbedding(item);
     }
 
     private static void validateLength(String text, int min, int max, String msg) {

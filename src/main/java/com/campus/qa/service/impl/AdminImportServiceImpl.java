@@ -5,6 +5,7 @@ import com.campus.qa.dto.ExcelImportResult;
 import com.campus.qa.entity.Question;
 import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.AdminImportService;
+import com.campus.qa.service.QuestionEmbeddingService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -22,9 +23,12 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdminImportServiceImpl implements AdminImportService {
 
     private final QuestionMapper questionMapper;
+    private final QuestionEmbeddingService questionEmbeddingService;
 
-    public AdminImportServiceImpl(QuestionMapper questionMapper) {
+    public AdminImportServiceImpl(QuestionMapper questionMapper,
+                                  QuestionEmbeddingService questionEmbeddingService) {
         this.questionMapper = questionMapper;
+        this.questionEmbeddingService = questionEmbeddingService;
     }
 
     @Override
@@ -71,6 +75,7 @@ public class AdminImportServiceImpl implements AdminImportService {
                     exist.setCategory(c);
                     exist.setSource("excel");
                     questionMapper.updateById(exist);
+                    questionEmbeddingService.upsertEmbedding(exist);
                     result.setOverwrittenCount(result.getOverwrittenCount() + 1);
                     result.setSuccessCount(result.getSuccessCount() + 1);
                     continue;
@@ -84,6 +89,7 @@ public class AdminImportServiceImpl implements AdminImportService {
                 item.setHitCount(0L);
                 item.setCreateTime(LocalDateTime.now());
                 questionMapper.insert(item);
+                questionEmbeddingService.upsertEmbedding(item);
                 result.setSuccessCount(result.getSuccessCount() + 1);
             }
             return result;

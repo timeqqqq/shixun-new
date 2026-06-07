@@ -41,5 +41,17 @@ mybatis-plus:
       id-type: auto
 
 app:
+  admin:
+    username: admin
+    password: 123456
+    token-ttl-hours: 8
   audit:
     sensitive-words: 诈骗,色情,赌博,毒品,暴力,恐怖,辱骂
+  embedding:
+    enabled: true
+    provider: openai
+    base-url: https://api.siliconflow.cn
+    api-key: ${EMBEDDING_API_KEY:}
+    model: BAAI/bge-m3
+    semantic-top-n: 20
+    candidate-limit: 100

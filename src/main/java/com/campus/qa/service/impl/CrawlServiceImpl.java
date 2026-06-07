@@ -8,6 +8,7 @@ import com.campus.qa.entity.Question;
 import com.campus.qa.mapper.CrawlTaskMapper;
 import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.CrawlService;
+import com.campus.qa.service.QuestionEmbeddingService;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.jsoup.Jsoup;
@@ -21,10 +22,14 @@ public class CrawlServiceImpl implements CrawlService {
 
     private final CrawlTaskMapper crawlTaskMapper;
     private final QuestionMapper questionMapper;
+    private final QuestionEmbeddingService questionEmbeddingService;
 
-    public CrawlServiceImpl(CrawlTaskMapper crawlTaskMapper, QuestionMapper questionMapper) {
+    public CrawlServiceImpl(CrawlTaskMapper crawlTaskMapper,
+                            QuestionMapper questionMapper,
+                            QuestionEmbeddingService questionEmbeddingService) {
         this.crawlTaskMapper = crawlTaskMapper;
         this.questionMapper = questionMapper;
+        this.questionEmbeddingService = questionEmbeddingService;
     }
 
     @Override
@@ -56,14 +61,15 @@ public class CrawlServiceImpl implements CrawlService {
                 wrapper.eq("question", title);
                 Question exist = questionMapper.selectOne(wrapper);
                 if (exist == null) {
-                    Question q = new Question();
-                    q.setQuestion(title);
-                    q.setAnswer(content);
-                    q.setCategory("网站信息");
-                    q.setSource("crawl");
-                    q.setHitCount(0L);
-                    q.setCreateTime(LocalDateTime.now());
-                    questionMapper.insert(q);
+                    Question question = new Question();
+                    question.setQuestion(title);
+                    question.setAnswer(content);
+                    question.setCategory("\u7f51\u7ad9\u4fe1\u606f");
+                    question.setSource("crawl");
+                    question.setHitCount(0L);
+                    question.setCreateTime(LocalDateTime.now());
+                    questionMapper.insert(question);
+                    questionEmbeddingService.upsertEmbedding(question);
                     totalInserted = 1;
                 }
             }
@@ -79,7 +85,7 @@ public class CrawlServiceImpl implements CrawlService {
                     .status(task.getStatus())
                     .totalFound(totalFound)
                     .totalInserted(totalInserted)
-                    .message("爬取完成")
+                    .message("\u722c\u53d6\u5b8c\u6210")
                     .build();
         } catch (Exception ex) {
             task.setStatus("failed");
@@ -92,7 +98,7 @@ public class CrawlServiceImpl implements CrawlService {
                     .status(task.getStatus())
                     .totalFound(0)
                     .totalInserted(0)
-                    .message("爬取失败: " + shortMsg(ex.getMessage()))
+                    .message("\u722c\u53d6\u5931\u8d25: " + shortMsg(ex.getMessage()))
                     .build();
         }
     }

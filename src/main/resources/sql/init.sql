@@ -21,6 +21,18 @@ CREATE TABLE IF NOT EXISTS question (
   KEY idx_pinned_order (is_pinned, pinned_order)
 );
 
+CREATE TABLE IF NOT EXISTS question_embedding (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  question_id BIGINT NOT NULL,
+  embedding_model VARCHAR(128) NOT NULL,
+  vector_json LONGTEXT NOT NULL,
+  content_hash VARCHAR(64) NOT NULL,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_question_id (question_id),
+  KEY idx_content_hash (content_hash)
+);
+
 CREATE TABLE IF NOT EXISTS contribution (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   question VARCHAR(255) NOT NULL,
@@ -71,23 +83,25 @@ CREATE TABLE IF NOT EXISTS sensitive_word (
   UNIQUE KEY uk_word (word),
   KEY idx_enabled_level (enabled, level)
 );
+USE campus_qa;
+
+CREATE TABLE IF NOT EXISTS question_embedding (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  question_id BIGINT NOT NULL,
+  embedding_model VARCHAR(128) NOT NULL,
+  vector_json LONGTEXT NOT NULL,
+  content_hash VARCHAR(64) NOT NULL,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_question_id (question_id),
+  KEY idx_content_hash (content_hash)
+);
 
 USE campus_qa;
 
-INSERT INTO sensitive_word (word, level, enabled, source) VALUES
-('诈骗', 'high', 1, 'seed'),
-('色情', 'high', 1, 'seed'),
-('赌博', 'high', 1, 'seed'),
-('毒品', 'high', 1, 'seed'),
-('暴力', 'high', 1, 'seed'),
-('恐怖', 'high', 1, 'seed'),
-('辱骂', 'medium', 1, 'seed');
-INSERT INTO sensitive_word (word, level, enabled, source) VALUES
-('杀', 'medium', 1, 'semantic-seed'),
-('刀', 'medium', 1, 'semantic-seed'),
-('炸弹', 'high', 1, 'semantic-seed'),
-('报复', 'high', 1, 'semantic-seed'),
-('今晚', 'low', 1, 'semantic-seed'),
-('明天', 'low', 1, 'semantic-seed'),
-('宿舍', 'low', 1, 'semantic-seed'),
-('教学楼', 'low', 1, 'semantic-seed');
+SELECT COUNT(*) AS total FROM question_embedding;
+
+SELECT question_id, embedding_model, create_time
+FROM question_embedding
+ORDER BY id DESC
+LIMIT 10;

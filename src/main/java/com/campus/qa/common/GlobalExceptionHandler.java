@@ -25,3 +25,4 @@ public class GlobalExceptionHandler {
         return Map.of("message", msg);
     }
 }
+//f6a5d9d262724ccfa45962700497f7e6

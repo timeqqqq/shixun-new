@@ -9,6 +9,7 @@ import com.campus.qa.entity.Question;
 import com.campus.qa.mapper.ContributionMapper;
 import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.AdminContributionAuditService;
+import com.campus.qa.service.QuestionEmbeddingService;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -21,10 +22,14 @@ public class AdminContributionAuditServiceImpl implements AdminContributionAudit
 
     private final ContributionMapper contributionMapper;
     private final QuestionMapper questionMapper;
+    private final QuestionEmbeddingService questionEmbeddingService;
 
-    public AdminContributionAuditServiceImpl(ContributionMapper contributionMapper, QuestionMapper questionMapper) {
+    public AdminContributionAuditServiceImpl(ContributionMapper contributionMapper,
+                                            QuestionMapper questionMapper,
+                                            QuestionEmbeddingService questionEmbeddingService) {
         this.contributionMapper = contributionMapper;
         this.questionMapper = questionMapper;
+        this.questionEmbeddingService = questionEmbeddingService;
     }
 
     @Override
@@ -140,5 +145,6 @@ public class AdminContributionAuditServiceImpl implements AdminContributionAudit
         item.setHitCount(0L);
         item.setCreateTime(LocalDateTime.now());
         questionMapper.insert(item);
+        questionEmbeddingService.upsertEmbedding(item);
     }
 }
