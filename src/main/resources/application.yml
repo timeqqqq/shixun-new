@@ -51,7 +51,7 @@ app:
     enabled: true
     provider: openai
     base-url: https://api.siliconflow.cn
-    api-key: ${EMBEDDING_API_KEY:}
+    api-key: sk-nthxbvbsayoodxudwqagjklshijczceayfvfcvlirfyldmal
     model: BAAI/bge-m3
     semantic-top-n: 20
     candidate-limit: 100
