@@ -62,11 +62,22 @@ public class SearchServiceImpl implements SearchService {
 
     @Override
     public List<SearchResultItem> search(String keyword, String userIp) {
+        return doSearch(keyword, userIp, true, true);
+    }
+
+    @Override
+    public List<SearchResultItem> searchForAiAnswer(String keyword) {
+        return doSearch(keyword, null, false, false);
+    }
+
+    private List<SearchResultItem> doSearch(String keyword, String userIp, boolean recordStats, boolean recordLog) {
         String q = keyword == null ? "" : keyword.trim();
         if (q.isEmpty()) {
             return List.of();
         }
-        cacheStatsService.incTotal();
+        if (recordStats) {
+            cacheStatsService.incTotal();
+        }
 
         String cacheKey = "search:" + q;
         try {
@@ -74,9 +85,13 @@ public class SearchServiceImpl implements SearchService {
             if (cached instanceof List<?>) {
                 @SuppressWarnings("unchecked")
                 List<SearchResultItem> result = (List<SearchResultItem>) cached;
-                cacheStatsService.incHit();
-                Long topId = result.isEmpty() ? null : result.get(0).getQuestionId();
-                queryLogAsyncService.saveLogAsync(q, topId, userIp);
+                if (recordStats) {
+                    cacheStatsService.incHit();
+                }
+                if (recordLog) {
+                    Long topId = result.isEmpty() ? null : result.get(0).getQuestionId();
+                    queryLogAsyncService.saveLogAsync(q, topId, userIp);
+                }
                 return result;
             }
         } catch (Exception ignore) {
@@ -104,8 +119,10 @@ public class SearchServiceImpl implements SearchService {
         } catch (Exception ignore) {
             // Ignore cache write failures.
         }
-        Long topId = top5.isEmpty() ? null : top5.get(0).getQuestionId();
-        queryLogAsyncService.saveLogAsync(q, topId, userIp);
+        if (recordLog) {
+            Long topId = top5.isEmpty() ? null : top5.get(0).getQuestionId();
+            queryLogAsyncService.saveLogAsync(q, topId, userIp);
+        }
         return top5;
     }
 
@@ -203,6 +220,8 @@ public class SearchServiceImpl implements SearchService {
             vo.setCategory(item.getCategory());
             vo.setMatchedTerms(new ArrayList<>(matchedTerms));
             vo.setScore(Math.min(100.0, finalScore));
+            vo.setRetrievalSource(resolveRetrievalSource(lexicalScore, semanticScore));
+            vo.setExplanation(buildExplanation(matchedTerms, lexicalScore, semanticScore));
             result.add(vo);
         }
 
@@ -244,5 +263,32 @@ public class SearchServiceImpl implements SearchService {
 
     private static String safeLower(String text) {
         return text == null ? "" : text.toLowerCase(Locale.ROOT);
+    }
+
+    private static String resolveRetrievalSource(double lexicalScore, double semanticScore) {
+        if (lexicalScore > 0 && semanticScore >= 55.0) {
+            return "hybrid";
+        }
+        if (semanticScore >= 55.0) {
+            return "semantic";
+        }
+        return "keyword";
+    }
+
+    private static String buildExplanation(Set<String> matchedTerms, double lexicalScore, double semanticScore) {
+        List<String> reasons = new ArrayList<>();
+        if (!matchedTerms.isEmpty()) {
+            reasons.add("命中关键词: " + String.join("、", matchedTerms));
+        }
+        if (lexicalScore > 0) {
+            reasons.add("关键词匹配得分 " + Math.round(lexicalScore) + "%");
+        }
+        if (semanticScore >= 55.0) {
+            reasons.add("语义召回得分 " + Math.round(semanticScore) + "%");
+        }
+        if (reasons.isEmpty()) {
+            reasons.add("根据综合排序返回");
+        }
+        return String.join("；", reasons);
     }
 }

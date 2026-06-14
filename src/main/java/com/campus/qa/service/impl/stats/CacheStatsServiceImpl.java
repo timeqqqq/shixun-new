@@ -22,6 +22,12 @@ public class CacheStatsServiceImpl implements CacheStatsService {
     }
 
     @Override
+    public void reset() {
+        total.set(0);
+        hit.set(0);
+    }
+
+    @Override
     public Map<String, Object> snapshot() {
         long t = total.get();
         long h = hit.get();

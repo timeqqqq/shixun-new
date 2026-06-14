@@ -5,4 +5,6 @@ import java.util.List;
 
 public interface SearchService {
     List<SearchResultItem> search(String keyword, String userIp);
+
+    List<SearchResultItem> searchForAiAnswer(String keyword);
 }

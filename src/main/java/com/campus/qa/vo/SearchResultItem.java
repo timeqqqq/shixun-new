@@ -14,4 +14,6 @@ public class SearchResultItem implements Serializable {
     private String category;
     private double score;
     private List<String> matchedTerms;
+    private String retrievalSource;
+    private String explanation;
 }

@@ -7,5 +7,7 @@ public interface CacheStatsService {
 
     void incHit();
 
+    void reset();
+
     Map<String, Object> snapshot();
 }

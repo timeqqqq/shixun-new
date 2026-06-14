@@ -83,25 +83,3 @@ CREATE TABLE IF NOT EXISTS sensitive_word (
   UNIQUE KEY uk_word (word),
   KEY idx_enabled_level (enabled, level)
 );
-USE campus_qa;
-
-CREATE TABLE IF NOT EXISTS question_embedding (
-  id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  question_id BIGINT NOT NULL,
-  embedding_model VARCHAR(128) NOT NULL,
-  vector_json LONGTEXT NOT NULL,
-  content_hash VARCHAR(64) NOT NULL,
-  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_question_id (question_id),
-  KEY idx_content_hash (content_hash)
-);
-
-USE campus_qa;
-
-SELECT COUNT(*) AS total FROM question_embedding;
-
-SELECT question_id, embedding_model, create_time
-FROM question_embedding
-ORDER BY id DESC
-LIMIT 10;

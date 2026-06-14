@@ -20,6 +20,6 @@ public class AdminHotController {
     @PostMapping("/pin/{questionId}")
     public Map<String, String> pin(@PathVariable Long questionId) {
         hotService.pinQuestion(questionId);
-        return Map.of("message", "缂冾噣銆婇幋鎰");
+        return Map.of("message", "pinned successfully");
     }
 }

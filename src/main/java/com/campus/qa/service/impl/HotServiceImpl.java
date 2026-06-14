@@ -48,21 +48,23 @@ public class HotServiceImpl implements HotService {
                 return list;
             }
         } catch (Exception ignore) {
+            // Ignore cache read failures.
         }
 
         List<HotQuestionItem> fresh = computeHot(p);
         try {
             redisTemplate.opsForValue().set(key, fresh, Duration.ofHours(1));
         } catch (Exception ignore) {
+            // Ignore cache write failures.
         }
         return fresh;
     }
 
     @Override
     public void pinQuestion(Long questionId) {
-        Question q = questionMapper.selectById(questionId);
-        if (q == null) {
-            throw new IllegalArgumentException("闂傚倸鍊搁崐鎼佸磻閸℃稑闂柨婵嗩槶閳ь剙鍊块幊鐐哄Ψ瑜夐弸鏍倵楠炲灝鍔氶柟铏姍楠炴鎮╃紒妯煎幈? " + questionId);
+        Question question = questionMapper.selectById(questionId);
+        if (question == null) {
+            throw new IllegalArgumentException("question not found: " + questionId);
         }
 
         QueryWrapper<Question> maxWrapper = new QueryWrapper<>();
@@ -70,9 +72,9 @@ public class HotServiceImpl implements HotService {
         Question top = questionMapper.selectOne(maxWrapper);
         int next = top == null || top.getPinnedOrder() == null ? 1 : top.getPinnedOrder() + 1;
 
-        q.setIsPinned(1);
-        q.setPinnedOrder(next);
-        questionMapper.updateById(q);
+        question.setIsPinned(1);
+        question.setPinnedOrder(next);
+        questionMapper.updateById(question);
 
         refreshAllCache();
     }
@@ -84,6 +86,7 @@ public class HotServiceImpl implements HotService {
             try {
                 redisTemplate.opsForValue().set(KEY_PREFIX + p, list, Duration.ofHours(1));
             } catch (Exception ignore) {
+                // Ignore cache write failures.
             }
         }
     }
@@ -116,19 +119,20 @@ public class HotServiceImpl implements HotService {
                 .last("LIMIT 5"));
 
         List<HotQuestionItem> result = new ArrayList<>();
-        for (Question q : pinned) {
-            HotQuestionItem item = toItem(q, countMap.getOrDefault(q.getId(), 0L), true);
+        for (Question question : pinned) {
+            HotQuestionItem item = toItem(question, countMap.getOrDefault(question.getId(), 0L), true);
             result.add(item);
         }
 
         if (!countMap.isEmpty()) {
             List<Question> hotQuestions = questionMapper.selectBatchIds(countMap.keySet());
-            hotQuestions.sort(Comparator.comparingLong((Question q) -> countMap.getOrDefault(q.getId(), 0L)).reversed());
-            for (Question q : hotQuestions) {
-                if (result.stream().anyMatch(x -> x.getQuestionId().equals(q.getId()))) {
+            hotQuestions.sort(Comparator.comparingLong((Question question) ->
+                    countMap.getOrDefault(question.getId(), 0L)).reversed());
+            for (Question question : hotQuestions) {
+                if (result.stream().anyMatch(x -> x.getQuestionId().equals(question.getId()))) {
                     continue;
                 }
-                result.add(toItem(q, countMap.getOrDefault(q.getId(), 0L), false));
+                result.add(toItem(question, countMap.getOrDefault(question.getId(), 0L), false));
                 if (result.size() >= HOT_LIMIT) {
                     break;
                 }
@@ -138,12 +142,12 @@ public class HotServiceImpl implements HotService {
         return result.size() > HOT_LIMIT ? result.subList(0, HOT_LIMIT) : result;
     }
 
-    private static HotQuestionItem toItem(Question q, Long cnt, boolean pinned) {
+    private static HotQuestionItem toItem(Question question, Long count, boolean pinned) {
         HotQuestionItem item = new HotQuestionItem();
-        item.setQuestionId(q.getId());
-        item.setQuestion(q.getQuestion());
-        item.setCategory(q.getCategory());
-        item.setQueryCount(cnt);
+        item.setQuestionId(question.getId());
+        item.setQuestion(question.getQuestion());
+        item.setCategory(question.getCategory());
+        item.setQueryCount(count);
         item.setPinned(pinned);
         return item;
     }

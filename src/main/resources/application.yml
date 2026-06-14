@@ -51,7 +51,13 @@ app:
     enabled: true
     provider: openai
     base-url: https://api.siliconflow.cn
-    api-key: sk-nthxbvbsayoodxudwqagjklshijczceayfvfcvlirfyldmal
+    api-key: ${EMBEDDING_API_KEY:}
     model: BAAI/bge-m3
     semantic-top-n: 20
     candidate-limit: 100
+  ai-answer:
+    enabled: true
+    base-url: https://api.siliconflow.cn
+    api-key: ${AI_CHAT_API_KEY:${EMBEDDING_API_KEY:}}
+    model: Qwen/Qwen2.5-7B-Instruct
+    max-references: 1

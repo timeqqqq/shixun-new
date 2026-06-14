@@ -3,6 +3,7 @@ package com.campus.qa.controller.admin;
 import com.campus.qa.service.stats.CacheStatsService;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,5 +20,11 @@ public class AdminCacheController {
     @GetMapping("/stats")
     public Map<String, Object> stats() {
         return cacheStatsService.snapshot();
+    }
+
+    @PostMapping("/reset")
+    public Map<String, String> reset() {
+        cacheStatsService.reset();
+        return Map.of("message", "cache stats reset");
     }
 }
