@@ -41,7 +41,9 @@ public class AiAnswerServiceImpl implements AiAnswerService {
             "时间", "几点", "什么时候", "地点", "哪里", "地址", "电话", "怎么", "流程",
             "预约", "挂号", "报销", "条件", "费用", "材料", "开放", "关闭", "门诊", "联系"
     );
-    private static final Set<String> CONTACT_HINTS = Set.of("联系", "电话", "手机号", "手机", "地址", "邮箱", "email", "qq", "微信");
+    private static final Set<String> CONTACT_HINTS = Set.of(
+            "联系", "电话", "手机号", "手机", "地址", "邮箱", "email", "qq", "微信"
+    );
 
     private final AiAnswerProperties properties;
     private final SearchService searchService;
@@ -55,7 +57,7 @@ public class AiAnswerServiceImpl implements AiAnswerService {
         this.searchService = searchService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15))
+                .connectTimeout(Duration.ofSeconds(8))
                 .build();
     }
 
@@ -67,7 +69,7 @@ public class AiAnswerServiceImpl implements AiAnswerService {
 
         String query = question == null ? "" : question.trim();
         if (query.isEmpty()) {
-            response.setNote("问题为空，未生成 AI 回答。");
+            response.setNote("问题为空，未生成 AI 答案。");
             return response;
         }
 
@@ -163,7 +165,7 @@ public class AiAnswerServiceImpl implements AiAnswerService {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(trimSlash(properties.getBaseUrl()) + "/v1/chat/completions"))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(12))
                 .header("Authorization", "Bearer " + properties.getApiKey())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
@@ -274,7 +276,7 @@ public class AiAnswerServiceImpl implements AiAnswerService {
         if (answer.length() > 180) {
             answer = answer.substring(0, 180) + "…";
         }
-        if (!answer.endsWith("。") && !answer.endsWith("；") && !answer.endsWith("！") && !answer.endsWith("…")) {
+        if (!answer.endsWith("。") && !answer.endsWith("！") && !answer.endsWith("？") && !answer.endsWith("…")) {
             answer = answer + "。";
         }
         return answer;

@@ -9,5 +9,7 @@ public interface CacheStatsService {
 
     void reset();
 
+    void clearSearchCache();
+
     Map<String, Object> snapshot();
 }

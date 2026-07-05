@@ -11,8 +11,25 @@ public interface QuestionEmbeddingService {
 
     int rebuildAll();
 
+    RebuildStatus startRebuildAsync();
+
+    RebuildStatus rebuildStatus();
+
+    long countEmbeddedQuestions();
+
     boolean isEnabled();
 
     record SemanticSearchHit(Long questionId, double score) {
+    }
+
+    record RebuildStatus(
+            boolean enabled,
+            boolean running,
+            int total,
+            int processed,
+            int successCount,
+            int failCount,
+            String message
+    ) {
     }
 }

@@ -6,6 +6,7 @@ import com.campus.qa.entity.Question;
 import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.AdminImportService;
 import com.campus.qa.service.QuestionEmbeddingService;
+import com.campus.qa.service.stats.CacheStatsService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -24,11 +25,14 @@ public class AdminImportServiceImpl implements AdminImportService {
 
     private final QuestionMapper questionMapper;
     private final QuestionEmbeddingService questionEmbeddingService;
+    private final CacheStatsService cacheStatsService;
 
     public AdminImportServiceImpl(QuestionMapper questionMapper,
-                                  QuestionEmbeddingService questionEmbeddingService) {
+                                  QuestionEmbeddingService questionEmbeddingService,
+                                  CacheStatsService cacheStatsService) {
         this.questionMapper = questionMapper;
         this.questionEmbeddingService = questionEmbeddingService;
+        this.cacheStatsService = cacheStatsService;
     }
 
     @Override
@@ -46,6 +50,7 @@ public class AdminImportServiceImpl implements AdminImportService {
             if (lastRowNum < 1) {
                 return result;
             }
+            boolean changed = false;
 
             for (int i = 1; i <= lastRowNum; i++) {
                 Row row = sheet.getRow(i);
@@ -76,6 +81,7 @@ public class AdminImportServiceImpl implements AdminImportService {
                     exist.setSource("excel");
                     questionMapper.updateById(exist);
                     questionEmbeddingService.upsertEmbedding(exist);
+                    changed = true;
                     result.setOverwrittenCount(result.getOverwrittenCount() + 1);
                     result.setSuccessCount(result.getSuccessCount() + 1);
                     continue;
@@ -90,7 +96,11 @@ public class AdminImportServiceImpl implements AdminImportService {
                 item.setCreateTime(LocalDateTime.now());
                 questionMapper.insert(item);
                 questionEmbeddingService.upsertEmbedding(item);
+                changed = true;
                 result.setSuccessCount(result.getSuccessCount() + 1);
+            }
+            if (changed) {
+                cacheStatsService.clearSearchCache();
             }
             return result;
         } catch (Exception ex) {

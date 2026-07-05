@@ -9,6 +9,7 @@ import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.ContributionService;
 import com.campus.qa.service.QuestionEmbeddingService;
 import com.campus.qa.service.SensitiveWordService;
+import com.campus.qa.service.stats.CacheStatsService;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -26,17 +27,20 @@ public class ContributionServiceImpl implements ContributionService {
     private final RedisTemplate<Object, Object> redisTemplate;
     private final SensitiveWordService sensitiveWordService;
     private final QuestionEmbeddingService questionEmbeddingService;
+    private final CacheStatsService cacheStatsService;
 
     public ContributionServiceImpl(ContributionMapper contributionMapper,
                                    QuestionMapper questionMapper,
                                    RedisTemplate<Object, Object> redisTemplate,
                                    SensitiveWordService sensitiveWordService,
-                                   QuestionEmbeddingService questionEmbeddingService) {
+                                   QuestionEmbeddingService questionEmbeddingService,
+                                   CacheStatsService cacheStatsService) {
         this.contributionMapper = contributionMapper;
         this.questionMapper = questionMapper;
         this.redisTemplate = redisTemplate;
         this.sensitiveWordService = sensitiveWordService;
         this.questionEmbeddingService = questionEmbeddingService;
+        this.cacheStatsService = cacheStatsService;
     }
 
     @Override
@@ -173,6 +177,7 @@ public class ContributionServiceImpl implements ContributionService {
         item.setCreateTime(LocalDateTime.now());
         questionMapper.insert(item);
         questionEmbeddingService.upsertEmbedding(item);
+        cacheStatsService.clearSearchCache();
     }
 
     private static void validateLength(String text, int min, int max, String msg) {

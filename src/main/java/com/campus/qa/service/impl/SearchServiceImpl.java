@@ -164,7 +164,7 @@ public class SearchServiceImpl implements SearchService {
         List<SearchResultItem> ranked = rank(new ArrayList<>(candidateMap.values()), query, queryTokens, semanticScoreMap, previewAnswer);
         List<SearchResultItem> top5 = ranked.size() > 5 ? new ArrayList<>(ranked.subList(0, 5)) : ranked;
 
-        if (previewAnswer) {
+        if (previewAnswer && !top5.isEmpty()) {
             writeCache(cacheKey, top5);
         }
         if (recordLog) {

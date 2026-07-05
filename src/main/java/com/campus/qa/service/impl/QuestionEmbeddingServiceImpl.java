@@ -18,6 +18,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,6 +40,18 @@ public class QuestionEmbeddingServiceImpl implements QuestionEmbeddingService {
     private final EmbeddingProvider embeddingProvider;
     private final EmbeddingProperties embeddingProperties;
     private final ObjectMapper objectMapper;
+    private final ExecutorService rebuildExecutor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "embedding-rebuild");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private final AtomicBoolean rebuildRunning = new AtomicBoolean(false);
+    private final AtomicInteger rebuildTotal = new AtomicInteger(0);
+    private final AtomicInteger rebuildProcessed = new AtomicInteger(0);
+    private final AtomicInteger rebuildSuccess = new AtomicInteger(0);
+    private final AtomicInteger rebuildFail = new AtomicInteger(0);
+    private volatile String rebuildMessage = "未开始";
 
     public QuestionEmbeddingServiceImpl(QuestionEmbeddingMapper questionEmbeddingMapper,
                                         QuestionMapper questionMapper,
@@ -48,37 +67,7 @@ public class QuestionEmbeddingServiceImpl implements QuestionEmbeddingService {
 
     @Override
     public void upsertEmbedding(Question question) {
-        if (!isEnabled() || question == null || question.getId() == null) {
-            return;
-        }
-        String content = buildEmbeddingText(question);
-        String contentHash = sha256(content);
-        QuestionEmbedding existing = questionEmbeddingMapper.selectOne(new LambdaQueryWrapper<QuestionEmbedding>()
-                .eq(QuestionEmbedding::getQuestionId, question.getId()));
-        if (existing != null && contentHash.equals(existing.getContentHash())) {
-            return;
-        }
-
-        try {
-            List<Double> vector = embeddingProvider.embed(content);
-            if (vector.isEmpty()) {
-                return;
-            }
-
-            QuestionEmbedding target = existing == null ? new QuestionEmbedding() : existing;
-            target.setQuestionId(question.getId());
-            target.setEmbeddingModel(embeddingProvider.modelName());
-            target.setVectorJson(objectMapper.writeValueAsString(vector));
-            target.setContentHash(contentHash);
-            if (existing == null) {
-                target.setCreateTime(LocalDateTime.now());
-                questionEmbeddingMapper.insert(target);
-            } else {
-                questionEmbeddingMapper.updateById(target);
-            }
-        } catch (Exception ex) {
-            log.warn("failed to build embedding for questionId={}: {}", question.getId(), ex.getMessage());
-        }
+        upsertEmbeddingInternal(question);
     }
 
     @Override
@@ -93,17 +82,20 @@ public class QuestionEmbeddingServiceImpl implements QuestionEmbeddingService {
             }
 
             List<QuestionEmbedding> all = questionEmbeddingMapper.selectList(new LambdaQueryWrapper<>());
-            List<SemanticSearchHit> hits = new ArrayList<>();
+            Map<Long, Double> bestScoreByQuestion = new java.util.HashMap<>();
             for (QuestionEmbedding item : all) {
                 List<Double> itemVector = parseVector(item.getVectorJson());
                 if (itemVector.isEmpty() || itemVector.size() != queryVector.size()) {
                     continue;
                 }
                 double similarity = cosineSimilarity(queryVector, itemVector);
-                if (similarity > 0) {
-                    hits.add(new SemanticSearchHit(item.getQuestionId(), similarity));
+                if (similarity > 0 && item.getQuestionId() != null) {
+                    bestScoreByQuestion.merge(item.getQuestionId(), similarity, Math::max);
                 }
             }
+            List<SemanticSearchHit> hits = bestScoreByQuestion.entrySet().stream()
+                    .map(entry -> new SemanticSearchHit(entry.getKey(), entry.getValue()))
+                    .collect(Collectors.toCollection(ArrayList::new));
             hits.sort(Comparator.comparingDouble(SemanticSearchHit::score).reversed());
             return hits.size() > topN ? new ArrayList<>(hits.subList(0, topN)) : hits;
         } catch (Exception ex) {
@@ -115,13 +107,87 @@ public class QuestionEmbeddingServiceImpl implements QuestionEmbeddingService {
     @Override
     public int rebuildAll() {
         if (!isEnabled()) {
+            rebuildMessage = "向量服务未启用";
             return 0;
         }
         List<Question> allQuestions = questionMapper.selectList(new LambdaQueryWrapper<>());
+        resetRebuildState(allQuestions.size());
+
         for (Question question : allQuestions) {
-            upsertEmbedding(question);
+            rebuildProcessed.incrementAndGet();
+            if (upsertEmbeddingInternal(question)) {
+                rebuildSuccess.incrementAndGet();
+            } else {
+                rebuildFail.incrementAndGet();
+            }
         }
+        rebuildMessage = "重建完成";
         return allQuestions.size();
+    }
+
+    @Override
+    public RebuildStatus startRebuildAsync() {
+        if (!isEnabled()) {
+            return new RebuildStatus(false, false, 0, 0, 0, 0, "向量服务未启用或未配置 API Key");
+        }
+        if (!rebuildRunning.compareAndSet(false, true)) {
+            return rebuildStatus();
+        }
+
+        List<Question> allQuestions = questionMapper.selectList(new LambdaQueryWrapper<>());
+        resetRebuildState(allQuestions.size());
+        rebuildMessage = "后台重建中";
+
+        rebuildExecutor.submit(() -> {
+            try {
+                for (Question question : allQuestions) {
+                    rebuildProcessed.incrementAndGet();
+                    if (upsertEmbeddingInternal(question)) {
+                        rebuildSuccess.incrementAndGet();
+                    } else {
+                        rebuildFail.incrementAndGet();
+                    }
+                }
+                rebuildMessage = "重建完成";
+            } catch (Exception ex) {
+                rebuildMessage = "重建异常: " + ex.getMessage();
+                log.error("embedding rebuild failed", ex);
+            } finally {
+                rebuildRunning.set(false);
+            }
+        });
+        return rebuildStatus();
+    }
+
+    @Override
+    public RebuildStatus rebuildStatus() {
+        return new RebuildStatus(
+                isEnabled(),
+                rebuildRunning.get(),
+                rebuildTotal.get(),
+                rebuildProcessed.get(),
+                rebuildSuccess.get(),
+                rebuildFail.get(),
+                rebuildMessage
+        );
+    }
+
+    @Override
+    public long countEmbeddedQuestions() {
+        List<QuestionEmbedding> all = questionEmbeddingMapper.selectList(new LambdaQueryWrapper<>());
+        Set<Long> validQuestionIds = questionMapper.selectList(new LambdaQueryWrapper<Question>().select(Question::getId))
+                .stream()
+                .map(Question::getId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+        if (validQuestionIds.isEmpty()) {
+            return 0;
+        }
+        return all.stream()
+                .map(QuestionEmbedding::getQuestionId)
+                .filter(validQuestionIds::contains)
+                .distinct()
+                .count();
     }
 
     @Override
@@ -135,6 +201,49 @@ public class QuestionEmbeddingServiceImpl implements QuestionEmbeddingService {
 
     public int semanticTopN() {
         return embeddingProperties.getSemanticTopN();
+    }
+
+    private boolean upsertEmbeddingInternal(Question question) {
+        if (!isEnabled() || question == null || question.getId() == null) {
+            return false;
+        }
+        String content = buildEmbeddingText(question);
+        String contentHash = sha256(content);
+        QuestionEmbedding existing = questionEmbeddingMapper.selectOne(new LambdaQueryWrapper<QuestionEmbedding>()
+                .eq(QuestionEmbedding::getQuestionId, question.getId()));
+        if (existing != null && contentHash.equals(existing.getContentHash())) {
+            return true;
+        }
+
+        try {
+            List<Double> vector = embeddingProvider.embed(content);
+            if (vector.isEmpty()) {
+                return false;
+            }
+
+            QuestionEmbedding target = existing == null ? new QuestionEmbedding() : existing;
+            target.setQuestionId(question.getId());
+            target.setEmbeddingModel(embeddingProvider.modelName());
+            target.setVectorJson(objectMapper.writeValueAsString(vector));
+            target.setContentHash(contentHash);
+            if (existing == null) {
+                target.setCreateTime(LocalDateTime.now());
+                questionEmbeddingMapper.insert(target);
+            } else {
+                questionEmbeddingMapper.updateById(target);
+            }
+            return true;
+        } catch (Exception ex) {
+            log.warn("failed to build embedding for questionId={}: {}", question.getId(), ex.getMessage());
+            return false;
+        }
+    }
+
+    private void resetRebuildState(int total) {
+        rebuildTotal.set(total);
+        rebuildProcessed.set(0);
+        rebuildSuccess.set(0);
+        rebuildFail.set(0);
     }
 
     private List<Double> parseVector(String vectorJson) throws JsonProcessingException {

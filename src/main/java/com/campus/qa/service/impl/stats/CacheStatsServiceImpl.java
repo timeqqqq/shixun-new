@@ -49,6 +49,18 @@ public class CacheStatsServiceImpl implements CacheStatsService {
     }
 
     @Override
+    public void clearSearchCache() {
+        try {
+            Set<Object> keys = redisTemplate.keys(SEARCH_PATTERN);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+            }
+        } catch (Exception ignore) {
+            // Ignore Redis failures.
+        }
+    }
+
+    @Override
     public Map<String, Object> snapshot() {
         long total = getLong(KEY_TOTAL);
         long hit = getLong(KEY_HIT);

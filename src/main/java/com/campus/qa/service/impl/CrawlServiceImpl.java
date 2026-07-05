@@ -9,6 +9,7 @@ import com.campus.qa.mapper.CrawlTaskMapper;
 import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.CrawlService;
 import com.campus.qa.service.QuestionEmbeddingService;
+import com.campus.qa.service.stats.CacheStatsService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
@@ -68,14 +69,17 @@ public class CrawlServiceImpl implements CrawlService {
     private final CrawlTaskMapper crawlTaskMapper;
     private final QuestionMapper questionMapper;
     private final QuestionEmbeddingService questionEmbeddingService;
+    private final CacheStatsService cacheStatsService;
     private final HttpClient httpClient;
 
     public CrawlServiceImpl(CrawlTaskMapper crawlTaskMapper,
                             QuestionMapper questionMapper,
-                            QuestionEmbeddingService questionEmbeddingService) {
+                            QuestionEmbeddingService questionEmbeddingService,
+                            CacheStatsService cacheStatsService) {
         this.crawlTaskMapper = crawlTaskMapper;
         this.questionMapper = questionMapper;
         this.questionEmbeddingService = questionEmbeddingService;
+        this.cacheStatsService = cacheStatsService;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(12))
                 .followRedirects(HttpClient.Redirect.NEVER)
@@ -103,6 +107,9 @@ public class CrawlServiceImpl implements CrawlService {
             task.setTotalInserted(summary.totalInserted());
             task.setEndTime(LocalDateTime.now());
             crawlTaskMapper.updateById(task);
+            if (summary.totalInserted() > 0) {
+                cacheStatsService.clearSearchCache();
+            }
 
             return CrawlStartResponse.builder()
                     .taskId(task.getId())
