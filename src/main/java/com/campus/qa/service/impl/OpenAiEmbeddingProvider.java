@@ -27,7 +27,7 @@ public class OpenAiEmbeddingProvider implements EmbeddingProvider {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(15))
+                .connectTimeout(Duration.ofSeconds(Math.max(1, properties.getConnectTimeoutSeconds())))
                 .build();
     }
 
@@ -55,7 +55,7 @@ public class OpenAiEmbeddingProvider implements EmbeddingProvider {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(trimSlash(properties.getBaseUrl()) + "/v1/embeddings"))
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(Math.max(1, properties.getRequestTimeoutSeconds())))
                 .header("Authorization", "Bearer " + properties.getApiKey())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))

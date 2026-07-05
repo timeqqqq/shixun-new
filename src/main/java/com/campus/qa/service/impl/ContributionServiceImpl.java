@@ -22,6 +22,8 @@ import org.springframework.util.StringUtils;
 @Service
 public class ContributionServiceImpl implements ContributionService {
 
+    private static final int DAILY_CONTRIBUTION_LIMIT = 20;
+
     private final ContributionMapper contributionMapper;
     private final QuestionMapper questionMapper;
     private final RedisTemplate<Object, Object> redisTemplate;
@@ -113,8 +115,8 @@ public class ContributionServiceImpl implements ContributionService {
             LocalDateTime end = LocalDateTime.of(LocalDate.now(), LocalTime.MAX);
             redisTemplate.expire(key, Duration.between(now, end));
         }
-        if (current != null && current > 5) {
-            throw new IllegalArgumentException("daily limit exceeded: max 5 contributions per IP");
+        if (current != null && current > DAILY_CONTRIBUTION_LIMIT) {
+            throw new IllegalArgumentException("daily limit exceeded: max 20 contributions per IP");
         }
     }
 

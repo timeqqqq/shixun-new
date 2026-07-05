@@ -14,6 +14,8 @@ public class EmbeddingProperties {
     private String model = "text-embedding-3-small";
     private int semanticTopN = 20;
     private int candidateLimit = 100;
+    private int connectTimeoutSeconds = 5;
+    private int requestTimeoutSeconds = 8;
 
     public boolean isEnabled() {
         return enabled;
@@ -69,5 +71,21 @@ public class EmbeddingProperties {
 
     public void setCandidateLimit(int candidateLimit) {
         this.candidateLimit = candidateLimit;
+    }
+
+    public int getConnectTimeoutSeconds() {
+        return connectTimeoutSeconds;
+    }
+
+    public void setConnectTimeoutSeconds(int connectTimeoutSeconds) {
+        this.connectTimeoutSeconds = connectTimeoutSeconds;
+    }
+
+    public int getRequestTimeoutSeconds() {
+        return requestTimeoutSeconds;
+    }
+
+    public void setRequestTimeoutSeconds(int requestTimeoutSeconds) {
+        this.requestTimeoutSeconds = requestTimeoutSeconds;
     }
 }

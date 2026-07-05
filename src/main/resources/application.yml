@@ -55,6 +55,8 @@ app:
     model: BAAI/bge-m3
     semantic-top-n: 20
     candidate-limit: 100
+    connect-timeout-seconds: 5
+    request-timeout-seconds: 8
   ai-answer:
     enabled: true
     base-url: https://api.siliconflow.cn

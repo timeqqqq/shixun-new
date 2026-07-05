@@ -57,7 +57,7 @@ public class AiAnswerServiceImpl implements AiAnswerService {
         this.searchService = searchService;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(8))
+                .connectTimeout(Duration.ofSeconds(5))
                 .build();
     }
 
@@ -165,7 +165,7 @@ public class AiAnswerServiceImpl implements AiAnswerService {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(trimSlash(properties.getBaseUrl()) + "/v1/chat/completions"))
-                .timeout(Duration.ofSeconds(12))
+                .timeout(Duration.ofSeconds(6))
                 .header("Authorization", "Bearer " + properties.getApiKey())
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(payload.toString(), StandardCharsets.UTF_8))
