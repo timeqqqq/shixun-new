@@ -6,6 +6,7 @@ import com.campus.qa.mapper.QueryLogMapper;
 import com.campus.qa.mapper.QuestionMapper;
 import com.campus.qa.service.HotService;
 import com.campus.qa.vo.HotQuestionItem;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,13 +27,16 @@ public class HotServiceImpl implements HotService {
     private final QueryLogMapper queryLogMapper;
     private final QuestionMapper questionMapper;
     private final RedisTemplate<Object, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     public HotServiceImpl(QueryLogMapper queryLogMapper,
                           QuestionMapper questionMapper,
-                          RedisTemplate<Object, Object> redisTemplate) {
+                          RedisTemplate<Object, Object> redisTemplate,
+                          ObjectMapper objectMapper) {
         this.queryLogMapper = queryLogMapper;
         this.questionMapper = questionMapper;
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -43,8 +47,14 @@ public class HotServiceImpl implements HotService {
         try {
             Object cached = redisTemplate.opsForValue().get(key);
             if (cached instanceof List<?>) {
-                @SuppressWarnings("unchecked")
-                List<HotQuestionItem> list = (List<HotQuestionItem>) cached;
+                List<HotQuestionItem> list = new ArrayList<>();
+                for (Object item : (List<?>) cached) {
+                    if (item instanceof HotQuestionItem hotQuestionItem) {
+                        list.add(hotQuestionItem);
+                    } else {
+                        list.add(objectMapper.convertValue(item, HotQuestionItem.class));
+                    }
+                }
                 return list;
             }
         } catch (Exception ignore) {

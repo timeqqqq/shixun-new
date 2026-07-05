@@ -58,7 +58,7 @@ public class AdminImportServiceImpl implements AdminImportService {
                 String a = getCellString(row.getCell(1));
                 String c = getCellString(row.getCell(2));
 
-                if (!isValid(q, 5, 200) || !isValid(a, 10, 2000)) {
+                if (!isValid(q, 2, 200) || !isValid(a, 10, 2000)) {
                     result.setFailedCount(result.getFailedCount() + 1);
                     continue;
                 }

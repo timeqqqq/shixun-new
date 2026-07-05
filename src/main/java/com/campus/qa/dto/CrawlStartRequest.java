@@ -5,9 +5,15 @@ import lombok.Data;
 
 @Data
 public class CrawlStartRequest {
-    @NotBlank(message = "任务名称不能为空")
+    @NotBlank(message = "task name must not be blank")
     private String taskName;
 
-    @NotBlank(message = "URL不能为空")
+    @NotBlank(message = "target url must not be blank")
     private String targetUrl;
+
+    private String category;
+
+    private Boolean batchMode = Boolean.FALSE;
+
+    private Integer maxPages = 10;
 }
